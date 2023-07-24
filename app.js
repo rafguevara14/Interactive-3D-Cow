@@ -10,12 +10,11 @@ var pointCounter = 0;
 function onPointTimer(){
 
 	pointCounter++
-	console.log(pointCounter)
 }
 
 var pointTimer = setInterval(onPointTimer, 1);
 
-const point_light_positions = [
+const light_positions = [
 	// Front face
 	vec3(-1.0, -1.0, 1.0),
 	vec3(1.0, -1.0, 1.0),
@@ -52,7 +51,7 @@ const point_light_positions = [
 	vec3( -1.0, 1.0, 1.0),
 	vec3( -1.0, 1.0, -1.0),
 ]
-const point_indices = [
+const light_indices = [
     0, 1, 2, 0, 2, 3, // front
     4, 5, 6, 4, 6, 7, // back
     8, 9, 10, 8, 10, 11, // top
@@ -114,6 +113,7 @@ function get_shape_prototype(){
 
 var cow = get_shape_prototype()
 var point_l = get_shape_prototype()
+var spot_l = get_shape_prototype()
 
 
 
@@ -170,9 +170,45 @@ function createCow() {
 	cow.location.color = colorLocation
 	cow.vao = vao
 
+	cow.location.light_pos = gl.getUniformLocation(program, "light_position_world")
+	cow.location.world_m = gl.getUniformLocation(program, "world_m")
+
 	gl.uniform4fv(cow.location.color, new Float32Array([0,0,0,1]))
 }
 
+function createLightSource(){
+
+	var light = get_shape_prototype()
+
+	// initialize shaders
+	light.program = initShaders(gl, "shaders/shape.vert", "shaders/shape.frag");
+	gl.useProgram(light.program)
+
+	// index buffer
+	light.indexBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, light.indexBuffer);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(light_indices), gl.STATIC_DRAW);
+
+	// position buffer
+	light.position_buffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, light.position_buffer);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flatten(light_positions)), gl.STATIC_DRAW);
+
+	light.vao = gl.createVertexArray()
+	gl.bindVertexArray(light.vao)
+	light.location.position = gl.getAttribLocation(light.program, "pos")
+	gl.bindBuffer(gl.ARRAY_BUFFER, light.position_buffer)
+	gl.enableVertexAttribArray(light.location.position)
+	gl.vertexAttribPointer(light.location.position, 3, gl.FLOAT, false, 0, 0)
+
+	light.location.transformation = gl.getUniformLocation(light.program, "transformation_m")
+	light.location.mv = gl.getUniformLocation(light.program, "model_view_m")
+	light.location.color = gl.getUniformLocation(light.program, "color")
+
+	gl.uniform4fv(light.location.color, new Float32Array([1,0,0,1]))
+
+	return light
+}
 
 function createPointLight() {
 
@@ -183,12 +219,12 @@ function createPointLight() {
 	// index buffer
 	point_l.indexBuffer = gl.createBuffer();
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, point_l.indexBuffer);
-	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(point_indices), gl.STATIC_DRAW);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(light_indices), gl.STATIC_DRAW);
 
 	// position buffer
 	point_l.position_buffer = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, point_l.position_buffer);
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flatten(point_light_positions)), gl.STATIC_DRAW);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flatten(light_positions)), gl.STATIC_DRAW);
 
 	point_l.vao = gl.createVertexArray()
 	gl.bindVertexArray(point_l.vao)
@@ -202,6 +238,37 @@ function createPointLight() {
 	point_l.location.color = gl.getUniformLocation(point_l.program, "color")
 
 	gl.uniform4fv(point_l.location.color, new Float32Array([1,0,0,1]))
+
+}
+
+function createSpotLight() {
+
+	// initialize shaders
+	spot_l.program = initShaders(gl, "shaders/shape.vert", "shaders/shape.frag");
+	gl.useProgram(spot_l.program)
+
+	// index buffer
+	spot_l.indexBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, spot_l.indexBuffer);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(light_indices), gl.STATIC_DRAW);
+
+	// position buffer
+	spot_l.position_buffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, spot_l.position_buffer);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(flatten(light_positions)), gl.STATIC_DRAW);
+
+	spot_l.vao = gl.createVertexArray()
+	gl.bindVertexArray(spot_l.vao)
+	spot_l.location.position = gl.getAttribLocation(spot_l.program, "pos")
+	gl.bindBuffer(gl.ARRAY_BUFFER, spot_l.position_buffer)
+	gl.enableVertexAttribArray(spot_l.location.position)
+	gl.vertexAttribPointer(spot_l.location.position, 3, gl.FLOAT, false, 0, 0)
+
+	spot_l.location.transformation = gl.getUniformLocation(spot_l.program, "transformation_m")
+	spot_l.location.mv = gl.getUniformLocation(spot_l.program, "model_view_m")
+	spot_l.location.color = gl.getUniformLocation(spot_l.program, "color")
+
+	gl.uniform4fv(spot_l.location.color, new Float32Array([1,0,0,1]))
 
 }
 
@@ -226,7 +293,8 @@ async function setup() {
 
 	createCow()
 
-	createPointLight()
+	spot_l = createLightSource()
+	point_l = createLightSource()
 
 	render();
 };
@@ -246,6 +314,24 @@ async function render() {
 		lookAt(eye, at, up)
 	)
 
+	var worldview_m = inverse(modelview_m)
+
+
+	/* point light position */
+	var point_light_r = vec3(0.2*pointCounter, 0, 0)
+	var translate_point_light = mult(
+		get_euler_angle_m(point_light_r),
+		translate(8, 5, 5), 
+	)
+	var light_position_w = mult(translate_point_light, vec4(0,0,0,1))
+
+	/* spot light position */
+	var spot_light_r = vec3(45*Math.cos(pointCounter*0.01)-5, 45, 0)
+	var translate_spot_light = mult(
+		translate(0, 6, 6), 
+		get_euler_angle_m(spot_light_r),
+	)
+
 	/* Render cow */
 	gl.useProgram(cow.program);
 	gl.bindVertexArray(cow.vao);
@@ -261,12 +347,14 @@ async function render() {
 	gl.uniformMatrix4fv(cow.location.mv, false, new Float32Array(flatten(modelview_m)))
 	gl.uniformMatrix4fv(cow.location.transformation, false, new Float32Array(flatten(transform_m)))
 
+	gl.uniformMatrix4fv(cow.location.world_m, false, new Float32Array(flatten(worldview_m)))
+	gl.uniform4fv(cow.location.light_pos, new Float32Array(flatten(light_position_w)))
+
 	// gl.drawArrays(gl.TRIANGLES, 0, get_vertices().length);
 	gl.drawElements(gl.TRIANGLES, get_faces().length, gl.UNSIGNED_SHORT, 0);
 
 	cow.prev_translation = cow.translation
 	cow.prev_rotation = cow.rotation
-
 
 	/* Render point light */
 	gl.useProgram(point_l.program);
@@ -274,16 +362,22 @@ async function render() {
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, point_l.indexBuffer);
 	gl.bindBuffer(gl.ARRAY_BUFFER, point_l.position_buffer);
 
-	var light_rotation = vec3(0.2*pointCounter, 0, 0)
-	var translate_light = mult(
-		get_euler_angle_m(light_rotation),
-		translate(8, 5, 5), 
-	)
-
 	gl.uniformMatrix4fv(point_l.location.mv, false, new Float32Array(flatten(modelview_m)))
-	gl.uniformMatrix4fv(point_l.location.transformation, false, new Float32Array(flatten(translate_light)))
+	gl.uniformMatrix4fv(point_l.location.transformation, false, new Float32Array(flatten(translate_point_light)))
 
-	gl.drawElements(gl.LINE_STRIP, point_indices.length, gl.UNSIGNED_SHORT, 0)
+	gl.drawElements(gl.LINE_STRIP, light_indices.length, gl.UNSIGNED_SHORT, 0)
+
+	/* Render spot light */
+	gl.useProgram(spot_l.program);
+	gl.bindVertexArray(spot_l.vao)
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, spot_l.indexBuffer);
+	gl.bindBuffer(gl.ARRAY_BUFFER, spot_l.position_buffer);
+
+	gl.uniformMatrix4fv(spot_l.location.mv, false, new Float32Array(flatten(modelview_m)))
+	gl.uniformMatrix4fv(spot_l.location.transformation, false, new Float32Array(flatten(translate_spot_light)))
+
+	gl.drawElements(gl.LINE_STRIP, light_indices.length, gl.UNSIGNED_SHORT, 0)
+
 
 	requestAnimationFrame(render);
 }
@@ -344,6 +438,7 @@ document.onmousemove = (event) => {
 }
 
 const zstep = 0.01
+var stop_light_rotation = false;
 document.onkeydown = (event) => {
 	if (event.key == "ArrowDown")
 	{
@@ -364,6 +459,17 @@ document.onkeydown = (event) => {
 		cow.rotation[0] = 0
 		cow.rotation[1] = 0
 		cow.rotation[2] = 0
+	}
+	else if (event.key == "p")
+	{
+		stop_light_rotation = !stop_light_rotation
+
+		if (stop_light_rotation) {
+			clearInterval(pointTimer)
+		}
+		else {
+			pointTimer = setInterval(onPointTimer, 1);
+		}
 	}
 
 }
