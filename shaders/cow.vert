@@ -16,10 +16,9 @@ uniform mat4 world_m;
 
 void main(){
 
-	vec3 world_position = (world_m * vec4(pos, 1.0)).xyz;
-	surface_to_light = light_position_world.xyz - world_position;
+	surface_to_light = light_position_world.xyz - pos;
 
-	fNormal = mat3(world_m) * normal;
+	fNormal = mat3(transformation_m) * normal;
 	
 	gl_Position = model_view_m * transformation_m * vec4(pos, 1.0);
 

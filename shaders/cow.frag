@@ -17,5 +17,5 @@ void main(){
 
 	fragColor = fColor;
 
-	fragColor.rgb *= light_intensity;
+	fragColor.rgb += light_intensity;
 }
