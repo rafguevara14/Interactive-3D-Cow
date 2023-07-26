@@ -2,17 +2,18 @@
 var gl
 var canvas;
 
+const degree_limit = 30
 
 var aspect;
 console.log("Hello World");
 
 var pointCounter = 0;
-function onPointTimer(){
-
-	pointCounter++
-}
-
+const onPointTimer = ()=>pointCounter++
 var pointTimer = setInterval(onPointTimer, 1);
+
+var spotCounter = 0;
+const onSpotTimer = ()=>spotCounter++
+var spotTimer = setInterval(onSpotTimer, 1);
 
 const faces = flatten(get_faces()).map(function (element) { return element - 1; });
 
@@ -66,30 +67,81 @@ const light_indices = [
 ];
 
 const vertex_array = flatten(get_vertices())
+const vertices = get_vertices()
 
 function get_cow_triangle(i) {
-	var ret = vec3(vertex_array[faces[i]], vertex_array[faces[i+1]], vertex_array[faces[i+2]]) 
+	var ret = vec3(vertices[faces[i]], vertices[faces[i+1]], vertices[faces[i+2]]) 
 	return ret
 }
 
 function computeCowNormals() {
 
-	for (var i = 6; i < faces.length; i+=6)
-	{
-		// get p0
-		var p0 = get_cow_triangle(i-6)
-		var p1 = get_cow_triangle(i-3)
-		var p2 = get_cow_triangle(i)
-		
+
+
+	cowNormals = []
+
+	var cowNormalsList = Array(vertex_array.length).fill([])
+
+	for (var i = 0; i < faces.length-2; i++) {
+
+		var p0 = vertices[faces[i]]
+		var p1 = vertices[faces[i+1]]
+		var p2 = vertices[faces[i+2]]
+
 		var u = subtract(p1, p0)
 		var v = subtract(p2, p0)
 		var n = cross(u, v)
-		console.log(normalize(n))
 
-
-		cowNormals.push(normalize(n))
+		cowNormalsList[faces[i]].push(n)
+		cowNormalsList[faces[i+1]].push(n) 
+		cowNormalsList[faces[i+2]].push(n)
 	}
-	
+
+	for (var i = 0; i < faces.length-2; i++) {
+
+		var index = faces[i]
+
+		var normals_list = cowNormalsList[index]
+
+		cowNormals[index] = vec3() 
+
+		for (var j = 0; j < normals_list.length; j++ )
+		{
+			cowNormals[index] = add(cowNormals[index], normals_list[j])
+		}
+
+		cowNormals[index] = scale(1/normals_list.length, cowNormals[index])
+	}
+
+
+	// const vertices = get_vertices()
+
+	// cowNormals = Array(vertices.length).fill(vec3())
+
+	// for (var i = 0; i < vertices.length-2; i++) {
+
+	// 	var i0 = i;
+	// 	var i1 = i+1;
+	// 	var i2 = i+2;
+
+	// 	var p0 = vertices[i0]
+	// 	var p1 = vertices[i1]
+	// 	var p2 = vertices[i2]
+
+	// 	var u = subtract(p1, p0)
+	// 	var v = subtract(p2, p0)
+	// 	var n = cross(u, v)
+
+	// 	// console.log(cowNormals[i0])
+	// 	console.log(n)
+	// 	add(cowNormals[i0], n)
+	// 	add(cowNormals[i1], n)
+	// 	add(cowNormals[i2], n)
+
+	// 	console.log(cowNormals[i0], n)
+	// 	console.log(cowNormals[i1], n)
+	// 	console.log(cowNormals[i2], n)
+	// }
 }
 
 
@@ -112,7 +164,7 @@ function initializeContext(){
     gl.lineWidth(1.0);
 
 	// gl.enable(gl.DEPTH_TEST);
-	// gl.enable(gl.CULL_FACE);
+	gl.enable(gl.CULL_FACE);
 	gl.cullFace(gl.BACK);
 
     console.log("WebGL initialized.");
@@ -167,7 +219,7 @@ function createCow() {
 
 	computeCowNormals()
 
-	console.log(faces.length/3 + " == " + cowNormals.length)
+	console.log(get_vertices().length + " == " + cowNormals.length)
 
 	// initialize shaders
 	var program = initShaders(gl, "shaders/cow.vert", "shaders/cow.frag");
@@ -215,10 +267,43 @@ function createCow() {
 	cow.location.normal = normalLocation
 	cow.vao = vao
 
-	cow.location.light_pos = gl.getUniformLocation(program, "light_position_world")
+	cow.location.pointl = gl.getUniformLocation(program, "pointl_position_world")
+	cow.location.spotl = gl.getUniformLocation(program, "spotl_position_world")
 	cow.location.world_m = gl.getUniformLocation(program, "world_m")
 
-	gl.uniform4fv(cow.location.color, new Float32Array([0,0,0,1]))
+	cow.location.spot_direction = gl.getUniformLocation(program,  "spot_direction")
+	cow.location.spot_limit = gl.getUniformLocation(program,  "spot_limit")
+
+	cow.location.eye = gl.getUniformLocation(program,  "eye_position")
+
+	cow.location.Ka = gl.getUniformLocation(program, "Ka");
+	cow.location.Kd = gl.getUniformLocation(program, "Kd");
+	cow.location.Ks = gl.getUniformLocation(program, "Ks");
+
+	cow.location.alpha = gl.getUniformLocation(program, "alpha");
+	cow.location.spotLa = gl.getUniformLocation(program, "spotLa");
+	cow.location.pointLa = gl.getUniformLocation(program, "pointLa");
+	cow.location.spotLd = gl.getUniformLocation(program, "spotLd");
+	cow.location.pointLd = gl.getUniformLocation(program, "pointLd");
+	cow.location.spotLs = gl.getUniformLocation(program, "spotLs");
+	cow.location.pointLs = gl.getUniformLocation(program, "pointLs");
+
+
+	// set constant parameters
+	gl.uniform1f(cow.location.Ka, 0.1);
+	gl.uniform1f(cow.location.Kd, 0.45);
+	gl.uniform1f(cow.location.Ks, 0.2);
+	gl.uniform1f(cow.location.alpha, 6.0);
+
+	gl.uniform1f(cow.location.pointLa, 0.1);
+	gl.uniform1f(cow.location.pointLd, 0.5);
+	gl.uniform1f(cow.location.pointLs, 0.5);
+
+	gl.uniform1f(cow.location.spotLa, 10.0);
+	gl.uniform1f(cow.location.spotLd, 10.0);
+	gl.uniform1f(cow.location.spotLs, 10.0);
+
+	gl.uniform4fv(cow.location.color, new Float32Array([0.4,0.2,0.1,1]))
 }
 
 function createLightSource(){
@@ -258,12 +343,16 @@ function get_euler_angle_m(rotation) {
 
 	var rotation_m = mat4()
 	
+
 	// rotate about x
 	rotation_m = mult(rotation_m, rotate(rotation[1], [1, 0, 0]))
+
 	// rotate about y
 	rotation_m = mult(rotation_m, rotate(rotation[0], [0, 1, 0]))
+
 	// rotate about z
 	rotation_m = mult(rotation_m, rotate(rotation[2], [0, 0, 1]))
+
 
 	return rotation_m
 
@@ -298,7 +387,7 @@ function matrix_vector_mult(m, v) {
 
 async function render() {
 
-	gl.clearColor(0, 0, 0, 0);
+	gl.clearColor(0, 0, 0, 0.6);
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	/* Compute common modelview matrix */ 
@@ -307,15 +396,14 @@ async function render() {
 	var up = vec3(0, 1, 0)
 	
 	var modelview_m = mult(
-		perspective(50, aspect, 0, 100),
+		perspective(45, aspect, 0, 80),
 		lookAt(eye, at, up)
 	)
 
 	var worldview_m = inverse(modelview_m)
 
-
 	/* point light position */
-	var point_light_r = vec3(0.2*pointCounter, 0, 0)
+	var point_light_r = vec3(0.15*pointCounter, 0, 0)
 	// var point_light_r = vec3(0,0,0)
 	var translate_point_light = mult(
 		get_euler_angle_m(point_light_r),
@@ -324,16 +412,26 @@ async function render() {
 
 	const point_light_position = matrix_vector_mult(get_euler_angle_m(point_light_r), vec4(8,5,5,1))
 
-	// console.log(point_light_position)
-
 	/* spot light position */
-	var spot_light_r = vec3(45*Math.cos(pointCounter*0.01)-5, 45, 0)
+	var spot_light_r = vec3(90*Math.cos(spotCounter*0.01), 0, 0)
+
 	var translate_spot_light = mult(
 		translate(0, 6, 6), 
 		get_euler_angle_m(spot_light_r),
 	)
 
-	// const spot_light_position = mult(translate_spot_light, vec4())
+	const spot_light_position = matrix_vector_mult(get_euler_angle_m(spot_light_r), vec4(0, 6, 6, 1))
+
+	// cube faces
+	var c0 = matrix_vector_mult(translate_spot_light, vec4(light_positions[0], 1))
+	var c1 = matrix_vector_mult(translate_spot_light, vec4(light_positions[1], 1))
+
+	var spot_direction = normalize(cross(c1, c0))
+	// spot_direction[1] *= -1
+	spot_direction = spot_direction.splice(0,3)
+	// spot_direction = matrix_vector_mult(translate_spot_light, vec4(spot_direction, 1)).splice(0, 3)
+	// console.log(spot_direction)
+
 
 	/* Render cow */
 	gl.useProgram(cow.program);
@@ -343,9 +441,10 @@ async function render() {
 	gl.vertexAttribPointer(cow.location.position, 3, gl.FLOAT, false, 0, 0)
 
 	var transform_m = mult(
-		translate(add(cow.prev_translation, cow.translation)), 
-		get_euler_angle_m(add(cow.prev_rotation, cow.rotation)),
+		translate(cow.translation), 
+		get_euler_angle_m(cow.rotation),
 	)
+
 
 	// set uniforms
 
@@ -353,13 +452,19 @@ async function render() {
 	gl.uniformMatrix4fv(cow.location.transformation, false, new Float32Array(flatten(transform_m)))
 
 	gl.uniformMatrix4fv(cow.location.world_m, false, new Float32Array(flatten(worldview_m)))
-	gl.uniform4fv(cow.location.light_pos, new Float32Array(flatten(point_light_position)))
+
+	gl.uniform4fv(cow.location.pointl, new Float32Array(flatten(point_light_position)))
+	gl.uniform4fv(cow.location.spot_l, new Float32Array(flatten(spot_light_position)))
+
+	// spotlight parameters
+	gl.uniform3fv(cow.location.spot_direction, new Float32Array(flatten(spot_direction)))
+	gl.uniform1f(cow.location.spot_limit, Math.cos(degree_limit*(Math.PI/180)))
+
+	gl.uniform3fv(cow.location.eye, new Float32Array (flatten(eye)))
 
 	// gl.drawArrays(gl.TRIANGLES, 0, get_vertices().length);
-	gl.drawElements(gl.TRIANGLES, get_faces().length, gl.UNSIGNED_SHORT, 0);
+	gl.drawElements(gl.TRIANGLES, faces.length, gl.UNSIGNED_SHORT, 0);
 
-	cow.prev_translation = cow.translation
-	cow.prev_rotation = cow.rotation
 
 	/* Render point light */
 	gl.useProgram(point_l.program);
@@ -388,10 +493,11 @@ window.onload = setup
 document.onmousedown = (event) => {
 	if (event.button == 0)
 	{
-		left_mouse.down = true
-		
+
 		left_mouse.init_x = event.clientX 
 		left_mouse.init_y = event.clientY
+
+		left_mouse.down = true
 	}
 	else if (event.button == 2)
 	{
@@ -405,10 +511,16 @@ document.onmousedown = (event) => {
 document.onmouseup = (event) => {
 	if (event.button == 0)
 	{
+		cow.prev_translation[0] = cow.translation[0]
+		cow.prev_translation[1] = cow.translation[1]
+
 		left_mouse.down = false
 	}
 	else if (event.button == 2)
 	{
+		cow.prev_rotation[0] = cow.rotation[0]
+		cow.prev_rotation[1] = cow.rotation[1]
+
 		right_mouse.down = false
 	}
 }
@@ -417,11 +529,10 @@ document.onmousemove = (event) => {
 
 	if (left_mouse.down)
 	{
-		cow.translation[0] = (event.clientX - left_mouse.init_x) / canvas.width
-		cow.translation[1] = -(event.clientY - left_mouse.init_y) / canvas.height
-
-		cow.translation[0] *= 20
-		cow.translation[1] *= 20
+		console.log(event.clientX)
+	
+		cow.translation[0] = (20*(event.clientX-left_mouse.init_x) / canvas.width) + cow.prev_translation[0]
+		cow.translation[1] = (20*(left_mouse.init_y-event.clientY) / canvas.height) + cow.prev_translation[1]
 
 		console.log(cow.translation)
 	}
@@ -429,11 +540,8 @@ document.onmousemove = (event) => {
 	if (right_mouse.down)
 	{
 		// around x
-		cow.rotation[0] = (event.clientX - right_mouse.init_x) / canvas.width
-		cow.rotation[1] = (event.clientY - right_mouse.init_y) / canvas.height
-
-		cow.rotation[0] *= 90
-		cow.rotation[1] *= 90
+		cow.rotation[0] = (90*(event.clientX - right_mouse.init_x) / canvas.width) + cow.prev_rotation[0]
+		cow.rotation[1] = (90*(event.clientY - right_mouse.init_y) / canvas.height) + cow.prev_rotation[1]
 
 		console.log("Rotation: " + JSON.stringify(cow.rotation))
 	}
@@ -441,16 +549,17 @@ document.onmousemove = (event) => {
 
 const ztranslation_step = 1
 const zangular_step = 10
-var stop_light_rotation = false;
+var stop_point_rotation = false;
+var stop_spot_rotation = false;
 document.onkeydown = (event) => {
 	if (event.key == "ArrowDown")
 	{
-		cow.translation[2] -= ztranslation_step
+		cow.translation[2] += ztranslation_step
 		console.log(cow.translation)
 	}
 	else if (event.key == "ArrowUp")
 	{
-		cow.translation[2] += ztranslation_step
+		cow.translation[2] -= ztranslation_step
 		console.log(cow.translation)
 	}
 	else if (event.key == "ArrowLeft")
@@ -465,28 +574,36 @@ document.onkeydown = (event) => {
 	}
 	else if (event.key == "r")
 	{
-		cow.translation[0] = 0
-		cow.translation[1] = 0
-		cow.translation[2] = 0
+		cow.translation = vec3()
+		cow.prev_translation = vec3()
 
-		cow.rotation[0] = 0
-		cow.rotation[1] = 0
-		cow.rotation[2] = 0
+		cow.rotation = vec3()
+		cow.prev_rotation = vec3()
 	}
 	else if (event.key == "p")
 	{
-		stop_light_rotation = !stop_light_rotation
+		stop_point_rotation = !stop_point_rotation
 
-		if (stop_light_rotation) {
+		if (stop_point_rotation) {
 			clearInterval(pointTimer)
 		}
 		else {
 			pointTimer = setInterval(onPointTimer, 1);
 		}
 	}
+	else if (event.key == "s"){
+		stop_spot_rotation = !stop_spot_rotation
+
+		if (stop_spot_rotation) {
+			clearInterval(spotTimer)
+		}
+		else {
+			spotTimer = setInterval(onSpotTimer, 1);
+		}
+	}
 
 }
 
-document.oncontextmenu = (event) => {
-    event.preventDefault();
-};
+// document.oncontextmenu = (event) => {
+//     event.preventDefault();
+// };
