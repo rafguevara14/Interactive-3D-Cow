@@ -13,17 +13,18 @@ out mediump vec4 fragColor;
 uniform vec3 spot_direction;
 uniform float spot_limit;
 
-uniform float Ka;
-uniform float Kd;
-uniform float Ks;
-uniform float alpha;
+const float Ka = 0.1;
+const float Kd = 0.3;
+const float Ks = 0.1;
+const float alpha = 2.0;
 
-uniform float spotLa;
-uniform float pointLa;
-uniform float spotLd;
-uniform float pointLd;
-uniform float spotLs;
-uniform float pointLs;
+const float pointLa = 0.3;
+const float pointLd = 0.8;
+const float pointLs = 1.0;
+
+const float spotLa = 2.0;
+const float spotLd = 0.3;
+const float spotLs = 0.0;
 
 float get_inverse_square(float dist)
 {
@@ -34,8 +35,7 @@ float get_inverse_square(float dist)
 	float k = 133.0;
 	
 	float quadratic = (a * pow(dist, 2.0)) - (b * dist) + c;
-	// return k * pow(quadratic, -1.0);
-	return 1.0;
+	return k * pow(quadratic, -1.0);
 }
 
 void main(){
@@ -54,7 +54,9 @@ void main(){
 	{
 		spot_intensity = dot(normal, surface_to_spotl_direction);
 
-		spotAmbient = Ka * spotLa;
+		spot_intensity = 1.0 - ((1.0 - spot_dot_direction) / (1.0 - spot_limit));
+
+		spotAmbient = Ka * spotLa*spot_intensity;
 	}
 	
 	float spot_distance = abs(length(surface_to_spotl));
@@ -74,12 +76,13 @@ void main(){
 
 	float pointAmbient = Ka * pointLa;
 	float pointDiffuse = pointFatt * Kd * pointLd * point_intensity;
-	float pointSpecular = Ks * pointLs * pow(cos(point_angle), alpha) * point_intensity;
+	float pointSpecular = pointFatt * Ks * pointLs * pow(point_angle, alpha) * point_intensity;
 
 	float spotDiffuse = spotFatt * Kd * spotLd * spot_intensity;
-	float spotSpecular = Ks * spotLs * pow(cos(spot_angle), alpha) * spot_intensity;
+	float spotSpecular = spotFatt * Ks * spotLs * pow(spot_angle, alpha) * spot_intensity;
 
 	float spotLight = spotAmbient+spotDiffuse+spotSpecular;
 	float pointLight = pointAmbient+pointDiffuse+pointSpecular;
-	fragColor.rgb +=  pointLight;
+
+	fragColor.rgb += pointLight+spotLight;
 }

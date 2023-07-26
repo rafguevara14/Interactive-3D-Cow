@@ -74,43 +74,58 @@ function get_cow_triangle(i) {
 	return ret
 }
 
+
 function computeCowNormals() {
 
 
 
-	cowNormals = []
+	cowNormals = Array(vertices.length).fill(vec3(0,0,0))
 
-	var cowNormalsList = Array(vertex_array.length).fill([])
+	var cowNormalsList = Array(vertices.length).fill(0)
 
-	for (var i = 0; i < faces.length-2; i++) {
-
-		var p0 = vertices[faces[i]]
-		var p1 = vertices[faces[i+1]]
-		var p2 = vertices[faces[i+2]]
+	function add_adjacent_normals(i0,i1,i2) {
+		var p0 = vertices[faces[i0]]
+		var p1 = vertices[faces[i1]]
+		var p2 = vertices[faces[i2]]
 
 		var u = subtract(p1, p0)
 		var v = subtract(p2, p0)
 		var n = cross(u, v)
 
-		cowNormalsList[faces[i]].push(n)
-		cowNormalsList[faces[i+1]].push(n) 
-		cowNormalsList[faces[i+2]].push(n)
+		cowNormals[faces[i0]] = add(cowNormals[faces[i0]], n)
+		cowNormals[faces[i1]] = add(cowNormals[faces[i1]], n)
+		cowNormals[faces[i2]] = add(cowNormals[faces[i2]], n)
+
+		cowNormalsList[faces[i]]++
+		cowNormalsList[faces[i+1]]++ 
+		cowNormalsList[faces[i+2]]++ 
 	}
 
 	for (var i = 0; i < faces.length-2; i++) {
 
-		var index = faces[i]
+		add_adjacent_normals(i,i+1,i+2)
 
-		var normals_list = cowNormalsList[index]
+	}
 
-		cowNormals[index] = vec3() 
+	add_adjacent_normals(faces.length-2, faces.length-1, 0)
+	add_adjacent_normals(faces.length-1, 0, 1)
 
-		for (var j = 0; j < normals_list.length; j++ )
-		{
-			cowNormals[index] = add(cowNormals[index], normals_list[j])
-		}
 
-		cowNormals[index] = scale(1/normals_list.length, cowNormals[index])
+
+
+	// cowNormals[faces[i]] = add(cowNormals[faces[i]], n)
+	// cowNormals[faces[i+1]] = add(cowNormals[faces[i+1]], n)
+	// cowNormals[faces[i+2]] = add(cowNormals[faces[i+2]], n)
+
+	// cowNormals[faces[i]] = add(cowNormals[faces[i]], n)
+	// cowNormals[faces[i+1]] = add(cowNormals[faces[i+1]], n)
+	// cowNormals[faces[i+2]] = add(cowNormals[faces[i+2]], n)
+
+	console.log("Normals: " + cowNormalsList.length + " == " + cowNormals.length)
+
+	for (var i = 0; i < cowNormalsList.length; i++) {
+
+		cowNormals[i] = scale(1/cowNormalsList[i], cowNormals[i])
 	}
 
 
@@ -290,18 +305,6 @@ function createCow() {
 
 
 	// set constant parameters
-	gl.uniform1f(cow.location.Ka, 0.1);
-	gl.uniform1f(cow.location.Kd, 0.45);
-	gl.uniform1f(cow.location.Ks, 0.2);
-	gl.uniform1f(cow.location.alpha, 6.0);
-
-	gl.uniform1f(cow.location.pointLa, 0.1);
-	gl.uniform1f(cow.location.pointLd, 0.5);
-	gl.uniform1f(cow.location.pointLs, 0.5);
-
-	gl.uniform1f(cow.location.spotLa, 10.0);
-	gl.uniform1f(cow.location.spotLd, 10.0);
-	gl.uniform1f(cow.location.spotLs, 10.0);
 
 	gl.uniform4fv(cow.location.color, new Float32Array([0.4,0.2,0.1,1]))
 }
@@ -460,7 +463,7 @@ async function render() {
 	gl.uniform3fv(cow.location.spot_direction, new Float32Array(flatten(spot_direction)))
 	gl.uniform1f(cow.location.spot_limit, Math.cos(degree_limit*(Math.PI/180)))
 
-	gl.uniform3fv(cow.location.eye, new Float32Array (flatten(eye)))
+	gl.uniform3fv(cow.location.eye, new Float32Array(flatten(eye)))
 
 	// gl.drawArrays(gl.TRIANGLES, 0, get_vertices().length);
 	gl.drawElements(gl.TRIANGLES, faces.length, gl.UNSIGNED_SHORT, 0);
@@ -604,6 +607,6 @@ document.onkeydown = (event) => {
 
 }
 
-// document.oncontextmenu = (event) => {
-//     event.preventDefault();
-// };
+document.oncontextmenu = (event) => {
+    event.preventDefault();
+};

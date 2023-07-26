@@ -27,7 +27,7 @@ void main(){
 	
 	surface_to_spotl = spotl_position_world.xyz - final_pos.xyz;
 
-	surface_to_eye = eye_position - final_pos.xyz;
+	surface_to_eye = normalize(final_pos.xyz - eye_position);
 
 	fNormal = mat3(transformation_m) * normal;
 	
